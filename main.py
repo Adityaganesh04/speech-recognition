@@ -42,7 +42,6 @@ from typing import Optional
 
 import config
 from contracts.schemas import MeetingRecord, QueryInput
-from layers.data_structuring.structurer import DataStructurer
 from layers.intelligence.extractor import IntelligenceExtractor
 from layers.output.generator import OutputGenerator
 from layers.output.insights import InsightsGenerator
@@ -50,6 +49,7 @@ from layers.query_retrieval.retriever import SemanticRetriever
 from layers.speech_processing.processor import SpeechProcessor
 from layers.storage.store import MeetingStore
 from utils.logger import get_layer_logger
+from layers.data_structuring.structurer import SemanticStructurer
 
 logger = get_layer_logger("main")
 
@@ -85,7 +85,7 @@ class MeetingIntelligencePipeline:
         self.output_gen = OutputGenerator()
 
         # Lazy layers (initialized on first use)
-        self._structurer = DataStructurer()
+        self._structurer = SemanticStructurer()
         self._intelligence = IntelligenceExtractor()
         self._speech_processor: Optional[SpeechProcessor] = None
         self._insights_gen: Optional[InsightsGenerator] = None

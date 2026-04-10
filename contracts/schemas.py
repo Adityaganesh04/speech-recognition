@@ -27,17 +27,16 @@ class SpeechSegment(BaseModel):
 # Layer 2 Output — Data Structuring
 # ─────────────────────────────────────────────────────────────────────────────
 class Chunk(BaseModel):
-    """Output contract for a structured, metadata-enriched text chunk."""
-    version: str = "v1"
-    chunk_id: str                     # e.g. "mtg_abc123_c0"
-    text: str                         # Aggregated text of the chunk
-    speakers: List[str]               # All speakers present in this chunk
-    meeting_id: str                   # Parent meeting identifier
-    language: str = "en"             # Detected or default language
-    start: float                      # Chunk start time (seconds)
-    end: float                        # Chunk end time (seconds)
-    word_count: int = 0               # Token count for this chunk
-
+    chunk_id: str
+    meeting_id: str
+    text: str
+    pure_text: str = ""
+    speakers: List[str]
+    
+    language: str = "en"
+    start: float
+    end: float
+    word_count: int = 0
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Layer 3 Output — Intelligence
