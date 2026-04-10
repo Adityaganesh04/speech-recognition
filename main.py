@@ -45,11 +45,11 @@ from contracts.schemas import MeetingRecord, QueryInput
 from layers.intelligence.extractor import IntelligenceExtractor
 from layers.output.generator import OutputGenerator
 from layers.output.insights import InsightsGenerator
-from layers.query_retrieval.retriever import SemanticRetriever
 from layers.speech_processing.processor import SpeechProcessor
 from layers.storage.store import MeetingStore
 from utils.logger import get_layer_logger
 from layers.data_structuring.structurer import SemanticStructurer
+from layers.query_retrieval.retriever import HybridRetriever
 
 logger = get_layer_logger("main")
 
@@ -81,7 +81,7 @@ class MeetingIntelligencePipeline:
 
         # Always-on layers
         self.store = MeetingStore()
-        self.retriever = SemanticRetriever(self.store.collection)
+        self.retriever = HybridRetriever(self.store.collection)
         self.output_gen = OutputGenerator()
 
         # Lazy layers (initialized on first use)

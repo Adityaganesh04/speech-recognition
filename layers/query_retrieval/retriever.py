@@ -1,169 +1,147 @@
-"""
-layers/query_retrieval/retriever.py — Layer 5: Query & Retrieval
-
-Responsibility:
-    Embed user queries and fetch semantically similar chunks from storage.
-
-Pipeline:
-    QueryInput → Query Embedding → ChromaDB Similarity Search → List[RetrievedChunk]
-
-Architecture principles applied:
-    - Plug-and-play: embedding model swappable via config.EMBEDDING_MODEL
-    - Output contract: always returns List[RetrievedChunk]
-    - Shared resource: embedder is also used by the pipeline to embed stored chunks
-    - Observability: retrieval count, threshold filtering, and timing are logged
-"""
-
 import time
 from typing import List, Optional
 
+import numpy as np
+from rank_bm25 import BM25Okapi
 from sentence_transformers import SentenceTransformer
 
 import config
 from contracts.interfaces import BaseRetriever
 from contracts.schemas import QueryInput, RetrievedChunk
 from utils.logger import get_layer_logger
-from utils.metrics import metrics
 
 logger = get_layer_logger("query_retrieval")
 
 
-class SemanticRetriever(BaseRetriever):
+class HybridRetriever(BaseRetriever):
     """
-    Embedding-based semantic retrieval over ChromaDB.
-
-    Upgrade path:
-        - Swap SentenceTransformer for OpenAI embeddings, Cohere, etc. via config
-        - Add hybrid (BM25 + dense) search in Stage 2
-        - Add re-ranking (cross-encoder) pass after initial retrieval
+    Hybrid Retriever: Combines BM25 (Keyword) and Dense (Semantic) search.
+    Uses Reciprocal Rank Fusion (RRF) for production-grade results.
     """
 
     def __init__(self, chroma_collection):
         logger.info(f"Loading embedding model: '{config.EMBEDDING_MODEL}'...")
         self.embedder = SentenceTransformer(config.EMBEDDING_MODEL)
         self.collection = chroma_collection
-        self._validate_embedding_model()
-        logger.info("SemanticRetriever ready.")
 
-    def _validate_embedding_model(self):
-        """
-        Check if the configured embedding model matches what's stored in ChromaDB.
-        Prevents silent data corruption from model mismatches (gap #4).
-        """
-        try:
-            meta = self.collection.metadata or {}
-            stored_model = meta.get("embedding_model")
+        # In-memory index state
+        self.bm25 = None
+        self.documents = []
+        self.metadatas = []
 
-            if stored_model is None:
-                # First time — record the model
-                self.collection.modify(
-                    metadata={
-                        **meta,
-                        "hnsw:space": "cosine",
-                        "embedding_model": config.EMBEDDING_MODEL,
-                    }
-                )
-                logger.info(f"Embedding model '{config.EMBEDDING_MODEL}' registered in ChromaDB.")
-            elif stored_model != config.EMBEDDING_MODEL:
-                logger.warning(
-                    f"⚠ EMBEDDING MODEL MISMATCH: "
-                    f"ChromaDB has embeddings from '{stored_model}' "
-                    f"but config specifies '{config.EMBEDDING_MODEL}'. "
-                    f"Query results may be inaccurate. "
-                    f"Re-ingest all meetings or revert EMBEDDING_MODEL to '{stored_model}'."
-                )
-        except Exception as exc:
-            logger.warning(f"Could not validate embedding model: {exc}")
+        logger.info("HybridRetriever initialized (BM25 + Dense).")
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    # ─────────────────────────────────────────────
+    # Build BM25 index
+    # ─────────────────────────────────────────────
+    def _build_bm25_index(self, meeting_id: Optional[str] = None):
+        where = {"meeting_id": meeting_id} if meeting_id else None
 
-    def retrieve(self, query_input: QueryInput) -> List[RetrievedChunk]:
-        """
-        Embed query and fetch top-k semantically similar chunks.
-
-        Args:
-            query_input: QueryInput contract (query text, optional meeting scope, top_k).
-
-        Returns:
-            List[RetrievedChunk] sorted by descending similarity score.
-        """
-        t0 = time.time()
-        logger.info(
-            f"Querying: '{query_input.query[:70]}' "
-            f"(top_k={query_input.top_k}, "
-            f"meeting_filter={query_input.meeting_id or 'all'})"
+        results = self.collection.get(
+            where=where,
+            include=["documents", "metadatas"]
         )
 
-        total_items = self.collection.count()
-        if total_items == 0:
-            logger.warning("ChromaDB collection is empty — no meetings ingested yet.")
+        if not results["documents"]:
+            logger.warning("No documents found to build BM25 index.")
+            return False
+
+        self.documents = results["documents"]
+        self.metadatas = results["metadatas"]
+
+        tokenized_docs = [doc.lower().split() for doc in self.documents]
+        self.bm25 = BM25Okapi(tokenized_docs)
+
+        return True
+
+    # ─────────────────────────────────────────────
+    # Retrieve
+    # ─────────────────────────────────────────────
+    def retrieve(self, query_input: QueryInput) -> List[RetrievedChunk]:
+        t0 = time.time()
+
+        # 1. Build BM25 index
+        if not self._build_bm25_index(query_input.meeting_id):
             return []
 
-        # Embed the query
+        # 2. Dense Search
         query_embedding = self.embedder.encode(
-            query_input.query, normalize_embeddings=True
+            query_input.query,
+            normalize_embeddings=True
         ).tolist()
 
-        # Build optional metadata filter
-        where: Optional[dict] = None
-        if query_input.meeting_id:
-            where = {"meeting_id": query_input.meeting_id}
+        where = {"meeting_id": query_input.meeting_id} if query_input.meeting_id else None
 
-        # Query ChromaDB
-        results = self.collection.query(
+        dense_results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=min(query_input.top_k, total_items),
+            n_results=min(query_input.top_k * 2, len(self.documents)),
             where=where,
-            include=["documents", "distances", "metadatas"],
+            include=["documents", "metadatas", "distances"]
         )
 
-        # Parse and filter results
-        retrieved: List[RetrievedChunk] = []
-        for i, doc in enumerate(results["documents"][0]):
-            distance = results["distances"][0][i]
-            score = round(1.0 - distance, 4)   # ChromaDB cosine: distance = 1 - similarity
+        # 3. BM25 Search
+        query_tokens = query_input.query.lower().split()
+        bm25_scores = self.bm25.get_scores(query_tokens)
+        bm25_ranking_idx = np.argsort(bm25_scores)[::-1][:query_input.top_k * 2].tolist()
 
-            if score < config.SIMILARITY_THRESHOLD:
-                logger.debug(
-                    f"Chunk '{results['ids'][0][i]}' filtered out "
-                    f"(score={score} < threshold={config.SIMILARITY_THRESHOLD})."
-                )
-                continue
+        # 4. Reciprocal Rank Fusion (RRF)
+        k = 60
+        rrf_scores = {}
 
-            meta = results["metadatas"][0][i]
-            retrieved.append(
-                RetrievedChunk(
-                    chunk_id=results["ids"][0][i],
-                    text=doc,
-                    score=score,
-                    speakers=meta.get("speakers", "SPEAKER_00").split(","),
-                    meeting_id=meta.get("meeting_id", ""),
-                )
+        # Dense ranking
+        for rank, doc_id in enumerate(dense_results["ids"][0]):
+            rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + (1 / (k + rank + 1))
+
+        # BM25 ranking (fixed mapping)
+        for rank, idx in enumerate(bm25_ranking_idx):
+            metadata = self.metadatas[idx]
+            doc_id = metadata.get("chunk_id")
+
+            if doc_id:
+                rrf_scores[doc_id] = rrf_scores.get(doc_id, 0) + (1 / (k + rank + 1))
+
+        # 5. Final sorting
+        sorted_ids = sorted(
+            rrf_scores.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )[:query_input.top_k]
+
+        results = []
+
+        if sorted_ids:
+            final_data = self.collection.get(
+                ids=[sid[0] for sid in sorted_ids],
+                include=["documents", "metadatas"]
             )
 
-        # Sort by descending score
-        retrieved.sort(key=lambda x: x.score, reverse=True)
+            for i, doc_id in enumerate(final_data["ids"]):
+                meta = final_data["metadatas"][i]
+
+                # FIX: ensure speakers is always a list
+                raw_speakers = meta.get("speakers", [])
+                if isinstance(raw_speakers, str):
+                    speakers = [raw_speakers]
+                else:
+                    speakers = raw_speakers
+
+                results.append(
+                    RetrievedChunk(
+                        chunk_id=doc_id,
+                        text=final_data["documents"][i],
+                        score=round(rrf_scores[doc_id], 4),
+                        speakers=speakers,
+                        meeting_id=meta.get("meeting_id", "")
+                    )
+                )
 
         elapsed = round(time.time() - t0, 3)
-        logger.info(
-            f"Retrieved {len(retrieved)} chunks "
-            f"(above threshold={config.SIMILARITY_THRESHOLD}) in {elapsed}s."
-        )
-        return retrieved
+        logger.info(f"Hybrid retrieval (BM25 + Dense) complete in {elapsed}s.")
+
+        return results
 
     def embed_chunks(self, texts: List[str]) -> List[List[float]]:
-        """
-        Batch-embed a list of chunk texts for storage.
-        Shared between the pipeline (ingestion) and query paths.
-        """
-        logger.info(f"Embedding {len(texts)} chunks...")
-        t0 = time.time()
-        embeddings = self.embedder.encode(
-            texts,
-            batch_size=32,
-            normalize_embeddings=True,
-            show_progress_bar=False,
-        )
-        elapsed = round(time.time() - t0, 3)
-        logger.info(f"Chunk embedding complete in {elapsed}s.")
-        return [e.tolist() for e in embeddings]
+        return [
+            e.tolist()
+            for e in self.embedder.encode(texts, normalize_embeddings=True)
+        ]
