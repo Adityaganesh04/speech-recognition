@@ -1,0 +1,47 @@
+﻿
+ΓòöΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòù
+Γòæ    Meeting Intelligence System  ΓÇö  Stage 1: Foundation  Γòæ
+Γòæ    Multi-Speaker Transcription + Semantic Search         Γòæ
+ΓòÜΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓòÉΓò¥
+
+[14:23:55] [mis.main] INFO     Initializing pipeline...
+[14:23:55] [mis.storage] INFO     Connecting to ChromaDB at 'C:\Users\Adithya\OneDrive\Desktop\new final\data\db\chroma'...
+[14:23:55] [mis.storage] INFO     ChromaDB collection 'meeting_chunks' ready (145 existing items).
+[14:23:55] [mis.storage] INFO     Connecting to SQLite at 'C:\Users\Adithya\OneDrive\Desktop\new final\data\db\meetings.db'...
+[14:23:55] [mis.storage] INFO     SQLite schema ready.
+[14:23:55] [mis.storage] INFO     MeetingStore ready.
+[14:23:55] [mis.query_retrieval] INFO     Loading embedding model: 'all-MiniLM-L6-v2'...
+[14:24:02] [mis.query_retrieval] WARNING  Could not validate embedding model: Changing the distance function of a collection once it is created is not supported currently.
+[14:24:02] [mis.query_retrieval] INFO     SemanticRetriever ready.
+[14:24:02] [mis.data_structuring] INFO     DataStructurer initialized (max_tokens=200, min_tokens=20, overlap=30)
+[14:24:02] [mis.intelligence] INFO     IntelligenceExtractor initialized (models will load on first use).
+[14:24:02] [mis.main] INFO     Pipeline ready.
+[14:24:02] [mis.main] INFO     Cleaning up pipeline resources...
+.venv\Scripts\python.exe 
+: 
+At line:1 char:1
++ 
+.venv\Scripts\python.exe 
+main.py ingest "data/audio
+/noisy_real_meetin ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo        
+      : NotSpecified: (:  
+  String) [], RemoteExc   
+ eption
+    + FullyQualifiedError 
+   Id : NativeCommandErr  
+  or
+ 
+  Γ¥î File not found: 
+Audio file not found: C:\U
+sers\Adithya\OneDrive\Desk
+top\new final\data\audio\n
+oisy_real_meeting.wav
+
+[14:24:02] [mis.intelligence] INFO     Unloading intelligence models...
+[14:24:02] [mis.intelligence] INFO     Intelligence models unloaded.
+[14:24:02] [mis.storage] INFO     SQLite connection closed.
+[14:24:02] [mis.main] INFO     Pipeline cleanup complete.

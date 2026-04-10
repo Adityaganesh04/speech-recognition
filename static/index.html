@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Meeting Intelligence AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Highlight.js for markdown/code formatting -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github-dark.min.css">
+</head>
+
+<body>
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <h2>meetingLLM</h2>
+                <div class="badge">Stage 4</div>
+            </div>
+
+            <button id="new-chat-btn" class="action-btn">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                    stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+                New Analysis
+            </button>
+            <input type="file" id="audio-upload" accept="audio/*,video/*" style="display: none;">
+            <button id="upload-btn" class="action-btn outline">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                Upload Audio
+            </button>
+            <div class="sidebar-label">AVAILABLE MEETINGS</div>
+            <div id="meetings-list" class="meetings-list">
+                <!-- Meetings populated by JS -->
+                <div class="loading-pulse">Loading meetings...</div>
+            </div>
+        </aside>
+
+        <!-- Main Chat Area -->
+        <main class="chat-area">
+            <!-- Header -->
+            <header class="chat-header">
+                <h3 id="current-meeting-title">Global Knowledge Graph</h3>
+                <span id="meeting-badge" class="badge subtle">Global Mode</span>
+            </header>
+
+            <!-- Messages Log -->
+            <div id="chat-log" class="chat-log">
+                <div class="message ai greeting">
+                    <div class="avatar">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"></path><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"></path></svg>
+                    </div>
+                    <div class="content">
+                        Hello! I am your Meeting Intelligence interface.
+                        Select a meeting from the sidebar to perform a deep-dive analysis, or ask a general question to search across all meetings.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Input Area -->
+            <div class="input-positioner">
+                <div class="input-container">
+                    <div class="input-box">
+                        <textarea id="prompt-input" placeholder="Message meetingLLM..." rows="1"></textarea>
+                        <button id="send-btn" class="send-btn">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline></svg>
+                        </button>
+                    </div>
+                    <div class="footer-text">
+                        Meeting Intelligence generates responses based on strict RAG chunk boundaries.
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Markdown Parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="/static/app.js"></script>
+</body>
+
+</html>

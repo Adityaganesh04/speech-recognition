@@ -1,0 +1,20 @@
+# Environment
+.env
+.venv/
+env/
+venv/
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
+# Project Data
+data/
+*.sqlite3
+*.db
+
+# OS Files
+.DS_Store
+Thumbs.db

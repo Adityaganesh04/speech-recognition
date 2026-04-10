@@ -1,0 +1,27 @@
+# ── Speech Processing ──────────────────────────────────────────
+whisperx>=3.1.1
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# ── Data Contracts ─────────────────────────────────────────────# Data structuring
+pydantic==2.6.3
+numpy==1.26.4
+
+# API Backend
+fastapi>=0.100.0
+uvicorn>=0.23.0
+
+# ── Intelligence ───────────────────────────────────────────────
+transformers>=4.35.0
+accelerate>=0.24.0
+spacy>=3.7.0
+
+# ── Embeddings & Vector Store ──────────────────────────────────
+sentence-transformers>=2.2.2  # Semantic embeddings
+python-dotenv>=1.0.0          # Environment variable management
+litellm>=1.0.0                # Universal LLM proxy (Gemini/OpenAI)
+google-generativeai>=0.4.0    # Gemini provider backend
+chromadb>=0.4.0
+
+# ── Utilities ──────────────────────────────────────────────────
+numpy>=1.24.0
