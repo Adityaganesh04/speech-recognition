@@ -54,10 +54,10 @@ from layers.query_retrieval.retriever import HybridRetriever
 logger = get_layer_logger("main")
 
 BANNER = """
-╔══════════════════════════════════════════════════════════╗
-║    Meeting Intelligence System  —  Stage 1: Foundation  ║
-║    Multi-Speaker Transcription + Semantic Search         ║
-╚══════════════════════════════════════════════════════════╝
++----------------------------------------------------------+
+|    Meeting Intelligence System  —  Stage 1: Foundation   |
+|    Multi-Speaker Transcription + Semantic Search         |
++----------------------------------------------------------+
 """
 
 
@@ -206,7 +206,7 @@ class MeetingIntelligencePipeline:
         retrieved = self.retriever.retrieve(query_input)
 
         # Layer 6: Generate
-        response = self.output_gen.generate(query_input, retrieved)
+        response = self.output_gen.generate(query_input, retrieved, stream_to_stdout=False)
         return response.model_dump()
 
     # ── Listing & Summaries ───────────────────────────────────────────────────

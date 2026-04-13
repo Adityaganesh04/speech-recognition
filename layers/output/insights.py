@@ -134,24 +134,22 @@ class InsightsGenerator:
 
         final_prompt = f"{base_instruction}{user_focus}\n\n=== RAW TRANSCRIPT LOG ===\n\n{transcript_block}"
 
-        # 3. Call LLM
+        # 3. Call LLM (non-streaming to avoid double-stream async issues on Windows)
         try:
             response = litellm.completion(
                 model=config.LLM_MODEL,
                 messages=[{"role": "user", "content": final_prompt}],
-                temperature=0.2, # Low temperature for factual extraction
+                temperature=0.2,
                 api_key=os.getenv("GEMINI_API_KEY"),
-                stream=True
+                stream=False
             )
-            
-            for chunk in response:
-                content = chunk.choices[0].delta.content
-                if content:
-                    yield content
-                    
+            full_text = response.choices[0].message.content
+            report = full_text if full_text else "No insights generated."
+
         except Exception as exc:
             logger.error(f"Single meeting insights generation failed: {exc}")
-            yield f"Error: Failed to connect to the generative AI provider to synthesize detailed meeting insights. {exc}"
+            report = f"\n\n**Analysis Error:** {str(exc)}"
 
         elapsed = round(time.time() - t0, 3)
         logger.info(f"Detailed meeting insights synthesized in {elapsed}s.")
+        return report

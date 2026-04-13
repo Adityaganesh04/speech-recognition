@@ -97,6 +97,7 @@ class OutputGenerator(BaseOutputGenerator):
     def _generate(self, query: str, chunks: List[RetrievedChunk], stream_to_stdout: bool = True) -> str:
         """
         Stage 2: LLM-backed conversational RAG via litellm.
+        Includes automatic retry with backoff for rate-limited free-tier API keys.
         """
         # If the user toggles back to "template" in config, use the Stage 1 behavior
         if config.FEATURES.get("output_mode", "llm").lower() == "template":
@@ -104,34 +105,52 @@ class OutputGenerator(BaseOutputGenerator):
 
         prompt = self._build_prompt(query, chunks)
         
-        try:
-            import os
-            import sys
-            logger.info(f"Generating LLM response using model: '{config.LLM_MODEL}'")
-            response = litellm.completion(
-                model=config.LLM_MODEL,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.2, # Keep output strictly grounded
-                api_key=os.getenv("GEMINI_API_KEY"), # Explicitly pass key
-                stream=True
-            )
-            
-            if stream_to_stdout:
-                print() # Start streaming on a new line
-            pieces = []
-            for chunk in response:
-                content = chunk.choices[0].delta.content
-                if content:
-                    if stream_to_stdout:
-                        sys.stdout.write(content)
-                        sys.stdout.flush()
-                    pieces.append(content)
-            
-            return "".join(pieces)
+        import os
+        max_retries = 1
+        
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Generating LLM response using model: '{config.LLM_MODEL}' (attempt {attempt + 1}/{max_retries})")
+                response = litellm.completion(
+                    model=config.LLM_MODEL,
+                    messages=[{"role": "user", "content": prompt}],
+                    temperature=0.2,
+                    api_key=os.getenv("GEMINI_API_KEY"),
+                    stream=False
+                )
+                
+                answer = response.choices[0].message.content
+                return answer
 
-        except Exception as exc:
-            logger.error(f"LLM Generation failed: {exc}. Falling back to template.")
-            return self._generate_template_fallback(query, chunks)
+            except Exception as exc:
+                error_str = str(exc).lower()
+                
+                # Check if it's a rate limit error
+                if "429" in str(exc) or "rate" in error_str or "quota" in error_str or "resource_exhausted" in error_str:
+                    if attempt < max_retries - 1:
+                        import time as _time
+                        wait_time = 30 * (attempt + 1)  # 30s, 60s, 90s
+                        logger.warning(f"Rate limited by Gemini API. Waiting {wait_time}s before retry...")
+                        _time.sleep(wait_time)
+                        continue
+                    else:
+                        logger.error(f"Gemini API rate limit exhausted after {max_retries} retries.")
+                        return (
+                            "⚠️ **Gemini API Rate Limit Reached**\n\n"
+                            "Your free-tier Gemini API key has hit its daily quota (20 requests/day for gemini-2.5-flash). "
+                            "The AI-powered analysis is temporarily unavailable.\n\n"
+                            "**Options to resolve this:**\n"
+                            "1. **Wait** — the quota resets automatically (check https://ai.dev/rate-limit)\n"
+                            "2. **Upgrade** — enable billing on your Google AI Studio project for higher limits\n"
+                            "3. **New API Key** — generate a fresh key at https://aistudio.google.com/apikey\n\n"
+                            "Your question has been received and the transcript data is available. "
+                            "Please try again once the rate limit resets."
+                        )
+                else:
+                    logger.error(f"LLM Generation failed (non-rate-limit): {exc}")
+                    return f"⚠️ **AI Generation Error:** {exc}"
+        
+        return "⚠️ Unexpected error in LLM generation."
 
     def _generate_template_fallback(self, query: str, chunks: List[RetrievedChunk]) -> str:
         """Original Stage 1 Template Generator"""
@@ -159,16 +178,27 @@ class OutputGenerator(BaseOutputGenerator):
 
     def _build_prompt(self, query: str, chunks: List[RetrievedChunk]) -> str:
         """
-        Helper: builds an LLM-ready prompt for Stage 2 upgrade.
-        Not used in Stage 1 but ready for plug-in.
+        Builds a rich, detailed LLM prompt from retrieved chunks.
+        Instructs Gemini to synthesize a thorough answer grounded in the transcript.
         """
-        context = "\n\n".join(
-            f"[Speaker: {', '.join(c.speakers)}] {c.text}" for c in chunks
-        )
+        context_parts = []
+        for c in chunks:
+            speakers = ', '.join(c.speakers) if c.speakers else 'Unknown'
+            context_parts.append(f"[Speaker: {speakers}]\n{c.text}")
+        context = "\n\n---\n\n".join(context_parts)
+
         return (
-            f"You are an expert meeting analyst. "
-            f"Answer the following question using ONLY the provided meeting transcript excerpts.\n\n"
-            f"Question: {query}\n\n"
-            f"Transcript excerpts:\n{context}\n\n"
-            f"Answer concisely and cite the source chunk IDs where relevant."
+            "You are an Expert Meeting Intelligence Analyst. Your role is to provide "
+            "comprehensive, detailed, and insightful answers based EXCLUSIVELY on the "
+            "meeting transcript excerpts provided below.\n\n"
+            "INSTRUCTIONS:\n"
+            "- Provide a thorough and detailed answer. Do NOT be vague or overly brief.\n"
+            "- Include specific details, names, numbers, decisions, and action items mentioned by speakers.\n"
+            "- Structure your response clearly using markdown (headings, bullet points, bold text) for readability.\n"
+            "- Attribute information to specific speakers where possible (e.g., 'Speaker X mentioned that...').\n"
+            "- Do NOT reference internal system identifiers like chunk IDs or similarity scores.\n"
+            "- If the transcript excerpts do not contain enough information to fully answer the question, "
+            "clearly state what IS available and what is missing.\n\n"
+            f"USER QUESTION: {query}\n\n"
+            f"=== MEETING TRANSCRIPT EXCERPTS ===\n\n{context}"
         )

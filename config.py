@@ -70,7 +70,7 @@ SQLITE_PATH = os.getenv("SQLITE_PATH", str(DB_DIR / "meetings.db"))
 # Layer 5 — Embeddings & Retrieval
 # ─────────────────────────────────────────────────────────────────────────────
 EMBEDDING_MODEL = os.getenv("EMBEDDING_MODEL", "all-MiniLM-L6-v2")
-DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K", "5"))
+DEFAULT_TOP_K = int(os.getenv("DEFAULT_TOP_K", "15"))
 SIMILARITY_THRESHOLD = float(os.getenv("SIMILARITY_THRESHOLD", "0.3"))
 
 # ─────────────────────────────────────────────────────────────────────────────
