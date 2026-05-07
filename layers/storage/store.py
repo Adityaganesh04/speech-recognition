@@ -185,7 +185,10 @@ class MeetingStore(BaseStore):
             for chunk in chunks:
                 cursor.execute(
                     """
-                    INSERT OR REPLACE INTO chunks
+                    INSERT OR REPLACE INTO chunks (
+                        chunk_id, meeting_id, text, pure_text, speakers, 
+                        language, start_time, end_time, word_count
+                    )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
@@ -291,7 +294,10 @@ class MeetingStore(BaseStore):
         if not row:
             return None
         d = dict(row)
-        d["participants"] = json.loads(d["participants"])
+        try:
+            d["participants"] = json.loads(d["participants"]) if d.get("participants") else []
+        except Exception:
+            d["participants"] = []
         return d
 
     def get_meeting_chunks(self, meeting_id: str) -> List[Dict[str, Any]]:
@@ -302,7 +308,10 @@ class MeetingStore(BaseStore):
         results = []
         for row in rows:
             d = dict(row)
-            d["speakers"] = json.loads(d["speakers"])
+            try:
+                d["speakers"] = json.loads(d["speakers"]) if d.get("speakers") else []
+            except Exception:
+                d["speakers"] = []
             results.append(d)
         return results
 
@@ -333,8 +342,12 @@ class MeetingStore(BaseStore):
         results = []
         for row in rows:
             d = dict(row)
-            d["entities"] = json.loads(d["entities"])
-            d["intents"] = json.loads(d["intents"])
+            try:
+                d["entities"] = json.loads(d["entities"]) if d.get("entities") else []
+                d["intents"] = json.loads(d["intents"]) if d.get("intents") else []
+            except Exception:
+                d["entities"] = []
+                d["intents"] = []
             results.append(d)
         return results
 

@@ -18,3 +18,47 @@ data/
 # OS Files
 .DS_Store
 Thumbs.db
+
+# Logs & runtime output
+*.log
+server_stdout.txt
+uvicorn_error.log
+crash.log
+
+# Test scripts & outputs
+test*.py
+*_output.txt
+*_result.txt
+*_results.txt
+test_report.html
+model_test_output.txt
+gemini_quick.txt
+gemini_test_result.txt
+insights_test_full.txt
+debug_output.txt
+
+# Debug / audit / temp files
+audit_backend.py
+audit_results.txt
+check_db.py
+check_speakers.py
+debug_insights.py
+dump_log.py
+diff.txt
+generate_graphs.py
+clean_error.json
+api_resp.txt
+api_result2.json
+api_test_result.txt
+fresh_result_*.json
+db_check_output.txt
+error.txt
+error_fixed.txt
+gemini_test_result.txt
+
+# Research PDFs (not source code)
+*.pdf
+
+# Node / frontend build artifacts
+frontend/node_modules/
+frontend/dist/

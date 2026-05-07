@@ -118,63 +118,35 @@ document.addEventListener("DOMContentLoaded", () => {
         const contentDiv = aiMessageDiv.querySelector('.content');
 
         try {
-            // Is it a streaming request? (Deep-Dive)
-            if (activeMeetingId) {
-                const response = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, meeting_id: activeMeetingId, stream: true })
-                });
+            // Unify Global and Deep Dive modes to single-pass fetch to bypass Windows SSE issues
+            contentDiv.innerHTML = activeMeetingId ? '<i>Analyzing transcript...</i>' : '<i>Searching memories...</i>';
+            
+            const reqBody = { query, stream: false };
+            if (activeMeetingId) reqBody.meeting_id = activeMeetingId;
 
-                const reader = response.body.getReader();
-                const decoder = new TextDecoder("utf-8");
-                let fullText = "";
-
-                while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-
-                    const chunk = decoder.decode(value, { stream: true });
-                    const lines = chunk.split('\n');
-
-                    for (const line of lines) {
-                        if (line.startsWith('data: ')) {
-                            const dataStr = line.replace('data: ', '').trim();
-                            if (dataStr === '[DONE]') break;
-                            if (!dataStr) continue;
-
-                            try {
-                                const parsed = JSON.parse(dataStr);
-                                fullText += parsed.token;
-                                // Use Marked.js to parse markdown dynamically
-                                contentDiv.innerHTML = marked.parse(fullText) + '<span class="cursor"></span>';
-                                chatLog.scrollTop = chatLog.scrollHeight;
-                            } catch (e) {
-                                console.error("SSE parse error", e, dataStr);
-                            }
-                        }
-                    }
+            const res = await fetch('/api/chat', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(reqBody)
+            });
+            
+            const data = await res.json();
+            
+            if (data.error) {
+                let errorMsg = data.error;
+                // Mask API exhaustion/quota errors as "system overloaded" per user request
+                if (errorMsg.toLowerCase().includes('exhausted') || errorMsg.toLowerCase().includes('quota') || errorMsg.toLowerCase().includes('429')) {
+                    errorMsg = "⚠️ The system is currently overloaded. Please try again later.";
                 }
-                contentDiv.innerHTML = marked.parse(fullText); // remove cursor
+                contentDiv.innerHTML = `<span style="color:red">${errorMsg}</span>`;
             } else {
-                // Generic global query (Non-streaming for now)
-                contentDiv.innerHTML = '<i>Searching memories...</i>';
-                const res = await fetch('/api/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ query, stream: false })
-                });
-                const data = await res.json();
-                
-                if (data.error) {
-                    contentDiv.innerHTML = `<span style="color:red">${data.error}</span>`;
-                } else {
-                    let text = marked.parse(data.answer);
-                    if (data.sources && data.sources.length) {
-                        text += `<br><br><small style="color:var(--text-muted)">Sources: ${data.sources.join(', ')}</small>`;
-                    }
-                    contentDiv.innerHTML = text;
+                let text = marked.parse(data.answer);
+                if (data.sources && data.sources.length) {
+                    // Extract unique meeting IDs from chunk IDs (e.g. "25-5146_c10" -> "25-5146")
+                    const meetingIds = [...new Set(data.sources.map(s => s.replace(/_c\d+$/, '')))];
+                    text += `<br><br><small style="color:var(--text-muted)">📎 Based on ${data.sources.length} transcript excerpts from: ${meetingIds.join(', ')}</small>`;
                 }
+                contentDiv.innerHTML = text;
             }
 
         } catch (err) {
